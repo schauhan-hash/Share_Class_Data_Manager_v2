@@ -7,7 +7,7 @@ in `data/Genericized_Sample_Data.xlsx`.
 
 - Overview with active-record count and data-quality exceptions
 - HTML-prototype-inspired navy and maroon theme with top-level horizontal navigation
-- Overview grid with operational filters, field-group selection, sorting, paging,
+- Overview grid with operational filters, field-group selection, clickable header sorting, paging,
   filtered workbook export, and coverage drilldowns
 - Search and filters by lifecycle, currency, and share-class type
 - Grouped add/edit form covering all 37 taxonomy fields
