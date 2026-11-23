@@ -52,8 +52,8 @@ def inject_style():
         [data-testid="stSidebar"] { display: none; }
         h1, h2, h3 { color: var(--navy); font-weight: 700; }
         .app-hero {
-            margin: 0 -3rem 1.1rem; padding: 1.55rem 3rem 1.15rem;
-            background: var(--navy); color: #fff; border-bottom: 4px solid var(--maroon);
+            margin: 0 -3rem; padding: 1.55rem 3rem 1.15rem;
+            background: var(--navy); color: #fff;
             display: flex; align-items: center; gap: 18px;
         }
         .brand-mark {
@@ -87,17 +87,32 @@ def inject_style():
             background: var(--surface); border-radius: 6px;
             font-weight: 600; min-height: 38px;
         }
-        [data-testid="stRadio"] [role="radiogroup"] {
-            gap: 0; border-bottom: 1px solid var(--line);
-            overflow-x: auto; padding-bottom: 0;
+        .st-key-workspace_navigation {
+            margin: 0 -3rem 1.1rem; padding: 0 2.6rem;
+            background: var(--navy); border-bottom: 4px solid var(--maroon);
         }
-        [data-testid="stRadio"] [role="radiogroup"] > label {
-            margin: 0 !important; padding: .72rem .9rem; white-space: nowrap;
-            border-bottom: 3px solid transparent;
+        .st-key-workspace_navigation [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap; gap: 4px; overflow-x: auto;
         }
-        [data-testid="stRadio"] [role="radiogroup"] > label:has(input:checked) {
-            color: var(--navy-2); border-bottom-color: var(--maroon);
-            background: rgba(31,59,110,.04);
+        .st-key-workspace_navigation [data-testid="column"] {
+            flex-shrink: 0; min-width: max-content;
+        }
+        .st-key-workspace_navigation div.stButton > button {
+            width: 100%; min-height: 46px; padding: 10px 18px;
+            border: 0 !important; border-bottom: 3px solid transparent !important;
+            border-radius: 0; background: transparent !important;
+            color: #d3dcee !important; font-size: 15px; font-weight: 600;
+            text-align: left; white-space: nowrap; box-shadow: none !important;
+        }
+        .st-key-workspace_navigation div.stButton > button:hover {
+            background: rgba(255,255,255,.08) !important; color: #fff !important;
+        }
+        .st-key-workspace_navigation div.stButton > button[kind="primary"],
+        .st-key-workspace_navigation div.stButton > [data-testid="stBaseButton-primary"] {
+            color: #fff !important; border-bottom-color: #fff !important;
+        }
+        .st-key-workspace_navigation div.stButton > button:focus-visible {
+            outline: 3px solid #9bbcff; outline-offset: -3px;
         }
         [data-testid="stMetric"] {
             background: var(--surface); border: 1px solid var(--line);
@@ -144,6 +159,7 @@ def inject_style():
         @media (max-width: 640px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
             .app-hero { margin-left: -1rem; margin-right: -1rem; padding: 1.2rem 1rem; }
+            .st-key-workspace_navigation { margin-left: -1rem; margin-right: -1rem; padding: 0 1rem; }
             .brand-mark { width: 46px; height: 46px; }
             .app-hero h1 { font-size: 1.35rem; }
             .browsing-role { min-width: 0; width: 100%; }
@@ -175,6 +191,10 @@ def actor():
         "Reviewer": "demo.reviewer@example.com",
         "Admin": "demo.admin@example.com",
     }[role]
+
+
+def set_workspace_page(page):
+    st.session_state.workspace_nav = page
 
 
 def now_utc():
@@ -712,11 +732,25 @@ def admin_page():
         st.success("Demo data reset.")
 
 
-inject_style()
 initialize_state()
 
 if "browsing_role" in st.session_state:
     st.session_state.role = st.session_state.browsing_role
+
+workspace_pages = {
+    "Overview": dashboard_page,
+    "Create & Edit Share Classes": records_page,
+    "Data Quality": quality_page,
+    "Import / Export": import_export_page,
+    "Review Queue": review_page,
+    "Change History": history_page,
+    "Admin": admin_page,
+}
+workspace_options = list(workspace_pages)
+if st.session_state.get("workspace_nav") not in workspace_pages:
+    st.session_state.workspace_nav = "Overview"
+
+inject_style()
 
 st.markdown(
     f"""
@@ -735,6 +769,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+with st.container(key="workspace_navigation"):
+    nav_columns = st.columns([len(label) + 2 for label in workspace_options], gap="small")
+    for index, (column, label) in enumerate(zip(nav_columns, workspace_options)):
+        with column:
+            st.button(
+                label,
+                key=f"workspace_tab_{index}",
+                type="primary" if st.session_state.workspace_nav == label else "secondary",
+                use_container_width=True,
+                on_click=set_workspace_page,
+                args=(label,),
+            )
+
 controls_column, summary_column = st.columns([1, 3])
 with controls_column:
     with st.popover("Change browsing role"):
@@ -751,29 +798,5 @@ with summary_column:
         f"{len(st.session_state.pending)} pending proposals"
     )
 
-page = st.radio(
-    "Workspace",
-    [
-        "Overview",
-        "Create & Edit Share Classes",
-        "Data Quality",
-        "Import / Export",
-        "Review Queue",
-        "Change History",
-        "Admin",
-    ],
-    horizontal=True,
-    key="workspace_nav",
-    label_visibility="collapsed",
-)
-
-{
-    "Overview": dashboard_page,
-    "Create & Edit Share Classes": records_page,
-    "Data Quality": quality_page,
-    "Import / Export": import_export_page,
-    "Review Queue": review_page,
-    "Change History": history_page,
-    "Admin": admin_page,
-}[page]()
+workspace_pages[st.session_state.workspace_nav]()
 
