@@ -1,5 +1,6 @@
 from copy import deepcopy
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 import json
 
@@ -18,6 +19,7 @@ from share_class_manager.schema import (
     DEFAULT_COLUMNS,
     FIELD_GROUPS,
     FIELD_ORDER,
+    NUMERIC_FIELDS,
     ROLE_PERMISSIONS,
     SELECT_OPTIONS,
 )
@@ -142,6 +144,26 @@ def inject_style():
             margin: 0; padding: 0; color: var(--ink); font-size: 21px; font-weight: 700;
         }
         .overview-count { color: var(--muted); font-size: 14px; margin-top: 2px; }
+        .overview-legend { display: flex; flex-wrap: wrap; gap: 22px; color: var(--muted); font-size: 13.5px; }
+        .overview-legend span { display: inline-flex; align-items: center; gap: 8px; }
+        .overview-legend i { width: 14px; height: 14px; border-radius: 3px; background: var(--navy-2); }
+        .overview-legend .linked { background: var(--maroon); }
+        .overview-grid { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+        .overview-grid table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+        .overview-grid th, .overview-grid td {
+            padding: 9px 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+            text-align: left; white-space: nowrap;
+        }
+        .overview-grid th { background: var(--navy-2); color: #fff; font-weight: 600; }
+        .overview-grid th.linked { background: var(--maroon); }
+        .overview-grid tr:nth-child(even) td { background: #f7f9fc; }
+        .overview-grid th:first-child, .overview-grid td:first-child {
+            position: sticky; left: 0; z-index: 1; min-width: 260px;
+            box-shadow: 3px 0 0 rgba(20,40,75,.14);
+        }
+        .overview-grid th:first-child { z-index: 2; }
+        .overview-grid td:first-child { background: var(--surface); font-weight: 600; }
+        .overview-grid tr:nth-child(even) td:first-child { background: #f7f9fc; }
         .eyebrow {
             color: var(--maroon); font-weight: 700; text-transform: uppercase;
             letter-spacing: .1em; font-size: .76rem;
@@ -215,6 +237,20 @@ def set_workspace_page(page):
     st.session_state.workspace_nav = page
 
 
+def clear_overview_filters():
+    for key in ("search_filter", "lifecycle_filter", "umbrella_filter", "share_class_filter", "tpa_filter", "currency_filter"):
+        st.session_state[key] = "" if key == "search_filter" else "All"
+    st.session_state.overview_page = 1
+
+
+def reset_overview_page():
+    st.session_state.overview_page = 1
+
+
+def change_overview_page(amount):
+    st.session_state.overview_page += amount
+
+
 def now_utc():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -272,6 +308,12 @@ def dashboard_page():
             f'{len(errors)} blocking issue{"s" if len(errors) != 1 else ""} require attention in Data Quality.</div>',
             unsafe_allow_html=True,
         )
+        st.button(
+            "View data-quality exceptions",
+            key="overview_quality_link",
+            on_click=set_workspace_page,
+            args=("Data Quality",),
+        )
     active_count = sum(row.get("Share Class Lifecycle") == "Active" for row in records)
     st.markdown(
         '<section class="overview-heading"><h2>Share Class Records</h2>'
@@ -284,6 +326,7 @@ def dashboard_page():
         "Search",
         key="search_filter",
         placeholder="Name, ISIN, CUSIP, fund or TPA ID",
+        on_change=reset_overview_page,
     )
     filter_fields = [
         ("lifecycle_filter", "Lifecycle", "Share Class Lifecycle"),
@@ -294,21 +337,87 @@ def dashboard_page():
     ]
     for control, (key, label, field) in zip(controls[1:], filter_fields):
         values = ["All"] + sorted({row.get(field, "") for row in records} - {""})
-        control.selectbox(label, values, key=key)
+        control.selectbox(label, values, key=key, on_change=reset_overview_page)
 
     visible = filtered_records()
-    st.caption(f"Showing {len(visible)} of {len(records)} records")
-    with st.expander("Visible field groups", expanded=False):
+    clear_column, export_column, groups_column = st.columns([4, 1, 1])
+    clear_column.button("Clear Filters", on_click=clear_overview_filters)
+    export_column.download_button(
+        "Export",
+        data=write_workbook(visible),
+        file_name="Share_Class_Records.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        help="Download all fields for the filtered records.",
+    )
+    with groups_column.popover("Columns", use_container_width=True):
         column_groups = st.multiselect(
             "Field groups",
             list(FIELD_GROUPS),
             default=list(FIELD_GROUPS),
-            label_visibility="collapsed",
         )
-    columns_to_show = []
+    columns_to_show = ["Share Class Reporting Name"]
     for group in column_groups:
-        columns_to_show.extend(FIELD_GROUPS[group])
-    compact_table(visible, columns=columns_to_show or DEFAULT_COLUMNS)
+        columns_to_show.extend(field for field in FIELD_GROUPS[group] if field not in columns_to_show)
+    linked_fields = {
+        "ISIN", "CUSIP", "Legal Fund Name Including Umbrella", "Umbrella",
+        "Legal Fund Name", "Legal Fund Name (Internal)", "Sub-Fund Name",
+    }
+    st.markdown(
+        '<div class="overview-legend"><span><i></i>Share class field</span>'
+        '<span><i class="linked"></i>Fund or security field</span></div>',
+        unsafe_allow_html=True,
+    )
+    sort_column, direction_column, size_column = st.columns([3, 1, 1])
+    sort_field = sort_column.selectbox("Sort by", columns_to_show, key="overview_sort")
+    descending = direction_column.selectbox("Order", ["Ascending", "Descending"]) == "Descending"
+    page_size = size_column.selectbox("Rows per page", [10, 25, 50])
+    def sort_key(row):
+        value = clean_value(row.get(sort_field, ""))
+        if sort_field in NUMERIC_FIELDS or sort_field == "# of Months Under Lock":
+            try:
+                return (0, float(value.replace(",", "").replace("$", "")))
+            except ValueError:
+                return (1, value.casefold())
+        return (0, value.casefold())
+
+    nonempty = [row for row in visible if clean_value(row.get(sort_field, ""))]
+    empty = [row for row in visible if not clean_value(row.get(sort_field, ""))]
+    visible = sorted(nonempty, key=sort_key, reverse=descending) + empty
+    pages = max(1, (len(visible) + page_size - 1) // page_size)
+    if st.session_state.get("overview_page", 1) > pages:
+        st.session_state.overview_page = pages
+    page = st.number_input("Page", min_value=1, max_value=pages, value=1, step=1, key="overview_page")
+    start = (page - 1) * page_size
+    displayed = visible[start:start + page_size]
+    headers = "".join(
+        f'<th{" class=linked" if field in linked_fields else ""}>{escape(field)}</th>'
+        for field in columns_to_show
+    )
+    rows = "".join(
+        "<tr>" + "".join(f"<td>{escape(str(row.get(field, '') or '–'))}</td>" for field in columns_to_show) + "</tr>"
+        for row in displayed
+    )
+    st.markdown(
+        f'<div class="overview-grid"><table><thead><tr>{headers}</tr></thead><tbody>{rows}</tbody></table></div>',
+        unsafe_allow_html=True,
+    )
+    if visible:
+        st.caption(f"Showing {start + 1}–{start + len(displayed)} of {len(visible)} records")
+    else:
+        st.info("No share classes match these filters. Clear the filters or try a different search term.")
+    previous_column, next_column, _ = st.columns([1, 1, 4])
+    previous_column.button(
+        "Previous", disabled=page == 1, on_click=change_overview_page, args=(-1,)
+    )
+    next_column.button(
+        "Next", disabled=page == pages, on_click=change_overview_page, args=(1,)
+    )
+    if "edit" in permissions():
+        st.button(
+            "Create or edit a share class",
+            on_click=set_workspace_page,
+            args=("Create & Edit Share Classes",),
+        )
 
     with st.expander("Coverage and distribution"):
         left, right = st.columns([1.15, 1])
