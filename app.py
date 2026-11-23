@@ -168,11 +168,54 @@ def inject_style():
             color: var(--maroon); font-weight: 700; text-transform: uppercase;
             letter-spacing: .1em; font-size: .76rem;
         }
-        .exception-banner, .notice-banner {
+        .st-key-overview_exception_banner {
+            position: relative; background: #f9eef0; border: 1px solid #e2c2c8;
+            border-radius: 8px; padding: 14px 18px 14px 72px;
+        }
+        .st-key-overview_exception_banner::before {
+            content: "⚠"; position: absolute; left: 18px; top: 50%;
+            transform: translateY(-50%); display: grid; place-items: center;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: var(--maroon); color: #fff; font-size: 24px;
+        }
+        .st-key-overview_exception_banner [data-testid="stVerticalBlock"] { gap: 2px !important; }
+        .st-key-overview_exception_banner [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap; gap: 4px !important; align-items: center;
+        }
+        .st-key-overview_exception_banner [data-testid="column"] {
+            flex: 0 0 auto !important; width: auto !important; min-width: 0 !important;
+        }
+        .overview-exception-title { font-size: 17px; font-weight: 700; color: var(--ink); }
+        .st-key-overview_exception_banner p { margin: 0; }
+        .st-key-overview_quality_link button,
+        .st-key-overview_clear_filters button,
+        .st-key-overview_export button,
+        .st-key-overview_columns_control [data-testid="stPopoverButton"] {
+            min-height: 36px; padding: 4px 10px;
+            border: 1px solid transparent !important; border-radius: 6px;
+            background: transparent !important; color: var(--navy-2) !important;
+            box-shadow: none !important; font-weight: 600;
+        }
+        .st-key-overview_quality_link button {
+            min-height: 24px; padding: 0; text-decoration: underline; text-underline-offset: 3px;
+        }
+        .st-key-overview_clear_filters button { text-decoration: underline; text-underline-offset: 3px; }
+        .st-key-overview_quality_link button:hover,
+        .st-key-overview_clear_filters button:hover,
+        .st-key-overview_export button:hover,
+        .st-key-overview_columns_control [data-testid="stPopoverButton"]:hover {
+            background: #e4eaf4 !important; color: var(--navy-2) !important;
+        }
+        .st-key-overview_quality_link button:focus-visible,
+        .st-key-overview_clear_filters button:focus-visible,
+        .st-key-overview_export button:focus-visible,
+        .st-key-overview_columns_control [data-testid="stPopoverButton"]:focus-visible {
+            outline: 3px solid #5b8def; outline-offset: 2px;
+        }
+        .notice-banner {
             background: #f9eef0; border: 1px solid #e2c2c8; border-radius: 8px;
             padding: 12px 16px; margin-bottom: 1rem;
         }
-        .exception-banner strong { color: var(--maroon); }
         .notice-banner { background: #eef3fb; border-color: #b9c9e6; }
         [data-testid="stTabs"] [data-baseweb="tab-list"] {
             border-bottom: 1px solid var(--line); gap: 0;
@@ -300,20 +343,21 @@ def compact_table(records, columns=DEFAULT_COLUMNS):
 def dashboard_page():
     records = st.session_state.records
     issues = validate_dataset(records)
-    errors = [issue for issue in issues if issue["severity"] == "Error"]
     if issues:
-        st.markdown(
-            f'<div class="exception-banner"><strong>{len(issues)} data-quality '
-            f'exception{"s" if len(issues) != 1 else ""}</strong><br>'
-            f'{len(errors)} blocking issue{"s" if len(errors) != 1 else ""} require attention in Data Quality.</div>',
-            unsafe_allow_html=True,
-        )
-        st.button(
-            "View data-quality exceptions",
-            key="overview_quality_link",
-            on_click=set_workspace_page,
-            args=("Data Quality",),
-        )
+        with st.container(key="overview_exception_banner"):
+            st.markdown(
+                f'<div class="overview-exception-title">{len(issues)} data quality '
+                f'exception{"s" if len(issues) != 1 else ""}</div>',
+                unsafe_allow_html=True,
+            )
+            link_column, text_column = st.columns(2, gap=None)
+            link_column.button(
+                "Click here",
+                key="overview_quality_link",
+                on_click=set_workspace_page,
+                args=("Data Quality",),
+            )
+            text_column.markdown("to triage these exceptions.")
     active_count = sum(row.get("Share Class Lifecycle") == "Active" for row in records)
     st.markdown(
         '<section class="overview-heading"><h2>Share Class Records</h2>'
@@ -341,20 +385,24 @@ def dashboard_page():
 
     visible = filtered_records()
     clear_column, export_column, groups_column = st.columns([4, 1, 1])
-    clear_column.button("Clear Filters", on_click=clear_overview_filters)
+    clear_column.button("Clear Filters", key="overview_clear_filters", on_click=clear_overview_filters)
     export_column.download_button(
         "Export",
+        key="overview_export",
+        icon=":material/download:",
         data=write_workbook(visible),
         file_name="Share_Class_Records.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         help="Download all fields for the filtered records.",
     )
-    with groups_column.popover("Columns", use_container_width=True):
-        column_groups = st.multiselect(
-            "Field groups",
-            list(FIELD_GROUPS),
-            default=list(FIELD_GROUPS),
-        )
+    with groups_column:
+        with st.container(key="overview_columns_control"):
+            with st.popover("Columns", icon=":material/view_column:"):
+                column_groups = st.multiselect(
+                    "Field groups",
+                    list(FIELD_GROUPS),
+                    default=list(FIELD_GROUPS),
+                )
     columns_to_show = ["Share Class Reporting Name"]
     for group in column_groups:
         columns_to_show.extend(field for field in FIELD_GROUPS[group] if field not in columns_to_show)
