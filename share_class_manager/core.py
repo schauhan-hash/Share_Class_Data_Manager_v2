@@ -23,6 +23,25 @@ def normalize_records(records):
     return normalized
 
 
+def sort_overview_records(records, field, descending=False):
+    def sort_key(record):
+        value = clean_value(record.get(field, ""))
+        if field in NUMERIC_FIELDS or field == "# of Months Under Lock":
+            try:
+                return (0, float(value.replace(",", "").replace("$", "")))
+            except ValueError:
+                return (1, value.casefold())
+        return (0, value.casefold())
+
+    nonempty = [row for row in records if clean_value(row.get(field, ""))]
+    empty = [row for row in records if not clean_value(row.get(field, ""))]
+    return sorted(nonempty, key=sort_key, reverse=descending) + empty
+
+
+def next_overview_sort(requested_field, current_field, descending):
+    return requested_field, not descending if requested_field == current_field else False
+
+
 def next_isin(records, reserved=None):
     values = [record.get("ISIN", "") for record in records]
     values.extend(reserved or [])
