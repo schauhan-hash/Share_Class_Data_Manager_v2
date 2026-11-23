@@ -106,16 +106,26 @@ def inject_style():
             outline: 3px solid #9bbcff; outline-offset: -3px;
         }
         .st-key-app_header [data-testid="stPopover"] > button {
-            width: 100%; min-width: 260px; min-height: 68px; padding: 10px 18px 10px 12px;
-            justify-content: flex-start; text-align: left;
-            border: 1px solid rgba(255,255,255,.32); border-radius: 999px;
-            background: rgba(255,255,255,.08); color: #fff;
+            display: flex !important; flex-direction: row !important;
+            align-items: center !important; justify-content: flex-start !important;
+            gap: 12px !important; width: 300px !important; min-width: 260px;
+            min-height: 68px; padding: 10px 18px 10px 12px;
+            border: 1px solid rgba(255,255,255,.32) !important; border-radius: 999px !important;
+            background: rgba(255,255,255,.08) !important; color: #fff !important;
+            text-align: left !important; box-shadow: none !important;
+        }
+        .st-key-app_header [data-testid="stPopover"] > button svg {
+            box-sizing: content-box; width: 18px; height: 18px; padding: 9px;
+            flex: none; border-radius: 50%; background: #fff; color: var(--maroon);
+        }
+        .st-key-app_header [data-testid="stPopover"] > button [data-testid="stMarkdownContainer"] {
+            flex: 1; text-align: left !important;
         }
         .st-key-app_header [data-testid="stPopover"] > button p {
-            margin: 0; color: #d3dcee; font-size: .8rem; line-height: 1.15;
+            margin: 0; color: #d3dcee !important; font-size: .8rem; line-height: 1.15;
         }
         .st-key-app_header [data-testid="stPopover"] > button strong {
-            color: #fff; font-size: 1.02rem; line-height: 1.25;
+            color: #fff !important; font-size: 1.02rem; line-height: 1.25;
         }
         .section-heading {
             background: var(--surface); border: 1px solid var(--line);
@@ -160,7 +170,9 @@ def inject_style():
             }
             .brand-mark { width: 46px; height: 46px; }
             .app-hero h1 { font-size: 1.35rem; }
-            .st-key-app_header [data-testid="stPopover"] > button { min-width: 0; }
+            .st-key-app_header [data-testid="stPopover"] > button {
+                width: 100% !important; min-width: 0;
+            }
         }
         </style>
         """,
