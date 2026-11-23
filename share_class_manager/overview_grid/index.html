@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #1a2233; font-family: "Source Sans 3", "Segoe UI", sans-serif; }
+    .grid { overflow-x: auto; border: 1px solid #d5dbe7; border-radius: 8px; background: #fff; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+    th, td { border-right: 1px solid #d5dbe7; border-bottom: 1px solid #d5dbe7; text-align: left; white-space: nowrap; }
+    th { background: #1f3b6e; color: #fff; font-weight: 600; }
+    th.linked { background: #7a1f2b; }
+    th button {
+      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px;
+      padding: 9px 14px; border: 0; background: transparent; color: inherit;
+      font: inherit; text-align: left; cursor: pointer; white-space: nowrap;
+    }
+    th button:hover { background: rgba(255,255,255,.16); }
+    th button:focus-visible { outline: 3px solid #9bbcff; outline-offset: -3px; }
+    .arrows { display: inline-flex; flex-direction: column; gap: 2px; opacity: .55; }
+    .arrows::before, .arrows::after { content: ""; border-left: 5px solid transparent; border-right: 5px solid transparent; }
+    .arrows::before { border-bottom: 5px solid currentColor; }
+    .arrows::after { border-top: 5px solid currentColor; }
+    .link-icon { flex: none; width: 13px; height: 13px; }
+    th[aria-sort="ascending"] .arrows, th[aria-sort="descending"] .arrows { opacity: 1; }
+    th[aria-sort="ascending"] .arrows::after, th[aria-sort="descending"] .arrows::before { opacity: .25; }
+    td { padding: 9px 14px; }
+    tbody tr:nth-child(even) td { background: #f7f9fc; }
+    th:first-child, td:first-child {
+      position: sticky; left: 0; z-index: 1; min-width: 260px;
+      box-shadow: 3px 0 0 rgba(20,40,75,.14);
+    }
+    th:first-child { z-index: 2; }
+    td:first-child { background: #fff; font-weight: 600; }
+    tbody tr:nth-child(even) td:first-child { background: #f7f9fc; }
+  </style>
+</head>
+<body>
+  <div class="grid" role="region" aria-label="Share class records" tabindex="0">
+    <table><thead></thead><tbody></tbody></table>
+  </div>
+  <script>
+    const grid = document.querySelector(".grid");
+    const head = document.querySelector("thead");
+    const body = document.querySelector("tbody");
+    let lastHeight = 0;
+
+    function send(type, data) {
+      window.parent.postMessage({isStreamlitMessage: true, type, ...data}, "*");
+    }
+
+    function resize() {
+      const height = Math.ceil(grid.getBoundingClientRect().height);
+      if (height !== lastHeight) {
+        lastHeight = height;
+        send("streamlit:setFrameHeight", {height});
+      }
+    }
+
+    function render(args) {
+      const scrollLeft = grid.scrollLeft;
+      const focusedField = head.contains(document.activeElement) ? document.activeElement.dataset.field : null;
+      let focusedButton = null;
+      head.replaceChildren();
+      body.replaceChildren();
+      const headerRow = document.createElement("tr");
+      args.columns.forEach(column => {
+        const th = document.createElement("th");
+        th.scope = "col";
+        if (column.linked) th.className = "linked";
+        const active = args.sortField === column.name;
+        th.setAttribute("aria-sort", active ? (args.descending ? "descending" : "ascending") : "none");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.field = column.name;
+        if (column.name === focusedField) focusedButton = button;
+        button.setAttribute("aria-label", `Sort by ${column.name}`);
+        if (column.linked) {
+          const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          icon.setAttribute("class", "link-icon");
+          icon.setAttribute("viewBox", "0 0 24 24");
+          icon.setAttribute("fill", "none");
+          icon.setAttribute("stroke", "currentColor");
+          icon.setAttribute("stroke-width", "2.2");
+          icon.setAttribute("aria-hidden", "true");
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", "M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1");
+          icon.appendChild(path);
+          button.appendChild(icon);
+        }
+        button.appendChild(document.createTextNode(column.name));
+        const arrows = document.createElement("span");
+        arrows.className = "arrows";
+        arrows.setAttribute("aria-hidden", "true");
+        button.appendChild(arrows);
+        button.addEventListener("click", () => {
+          send("streamlit:setComponentValue", {
+            dataType: "json",
+            value: {field: column.name, eventId: `${Date.now()}-${Math.random()}`}
+          });
+        });
+        th.appendChild(button);
+        headerRow.appendChild(th);
+      });
+      head.appendChild(headerRow);
+      args.rows.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(value => {
+          const td = document.createElement("td");
+          td.textContent = value || "–";
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+      grid.scrollLeft = scrollLeft;
+      if (focusedButton) focusedButton.focus({preventScroll: true});
+      resize();
+    }
+
+    window.addEventListener("message", event => {
+      if (event.source === window.parent && event.data && event.data.type === "streamlit:render") {
+        render(event.data.args);
+      }
+    });
+    window.addEventListener("resize", resize);
+    send("streamlit:componentReady", {apiVersion: 1});
+  </script>
+</body>
+</html>
