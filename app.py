@@ -1,16 +1,18 @@
 from copy import deepcopy
 from datetime import datetime, timezone
-from html import escape
 from pathlib import Path
 import json
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from share_class_manager.core import (
     clean_value,
     diff_records,
     fill_missing_isins,
+    next_overview_sort,
     normalize_records,
+    sort_overview_records,
     validate_dataset,
     validate_record,
 )
@@ -19,7 +21,6 @@ from share_class_manager.schema import (
     DEFAULT_COLUMNS,
     FIELD_GROUPS,
     FIELD_ORDER,
-    NUMERIC_FIELDS,
     ROLE_PERMISSIONS,
     SELECT_OPTIONS,
 )
@@ -28,6 +29,9 @@ from share_class_manager.xlsx_io import read_workbook, write_workbook
 ROOT = Path(__file__).parent
 SOURCE_FILE = ROOT / "data" / "Genericized_Sample_Data.xlsx"
 TEMPLATE_FILE = ROOT / "data" / "Corrected_Excel_File_Format.xlsx"
+overview_grid = components.declare_component(
+    "overview_grid", path=str(ROOT / "share_class_manager" / "overview_grid")
+)
 
 st.set_page_config(
     page_title="Share Class Data Manager",
@@ -148,22 +152,6 @@ def inject_style():
         .overview-legend span { display: inline-flex; align-items: center; gap: 8px; }
         .overview-legend i { width: 14px; height: 14px; border-radius: 3px; background: var(--navy-2); }
         .overview-legend .linked { background: var(--maroon); }
-        .overview-grid { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-        .overview-grid table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
-        .overview-grid th, .overview-grid td {
-            padding: 9px 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
-            text-align: left; white-space: nowrap;
-        }
-        .overview-grid th { background: var(--navy-2); color: #fff; font-weight: 600; }
-        .overview-grid th.linked { background: var(--maroon); }
-        .overview-grid tr:nth-child(even) td { background: #f7f9fc; }
-        .overview-grid th:first-child, .overview-grid td:first-child {
-            position: sticky; left: 0; z-index: 1; min-width: 260px;
-            box-shadow: 3px 0 0 rgba(20,40,75,.14);
-        }
-        .overview-grid th:first-child { z-index: 2; }
-        .overview-grid td:first-child { background: var(--surface); font-weight: 600; }
-        .overview-grid tr:nth-child(even) td:first-child { background: #f7f9fc; }
         .eyebrow {
             color: var(--maroon); font-weight: 700; text-transform: uppercase;
             letter-spacing: .1em; font-size: .76rem;
@@ -429,45 +417,47 @@ def dashboard_page():
         '<span><i class="linked"></i>Fund or security field</span></div>',
         unsafe_allow_html=True,
     )
-    sort_column, direction_column, size_column = st.columns([3, 1, 1])
-    sort_field = sort_column.selectbox("Sort by", columns_to_show, key="overview_sort")
-    descending = direction_column.selectbox("Order", ["Ascending", "Descending"]) == "Descending"
-    page_size = size_column.selectbox("Rows per page", [10, 25, 50])
-    def sort_key(row):
-        value = clean_value(row.get(sort_field, ""))
-        if sort_field in NUMERIC_FIELDS or sort_field == "# of Months Under Lock":
-            try:
-                return (0, float(value.replace(",", "").replace("$", "")))
-            except ValueError:
-                return (1, value.casefold())
-        return (0, value.casefold())
-
-    nonempty = [row for row in visible if clean_value(row.get(sort_field, ""))]
-    empty = [row for row in visible if not clean_value(row.get(sort_field, ""))]
-    visible = sorted(nonempty, key=sort_key, reverse=descending) + empty
+    sort_field = st.session_state.get("overview_sort_field", "Share Class Reporting Name")
+    descending = st.session_state.get("overview_sort_descending", False)
+    if sort_field not in columns_to_show:
+        sort_field = "Share Class Reporting Name"
+        descending = False
+        st.session_state.overview_sort_field = sort_field
+        st.session_state.overview_sort_descending = descending
+    visible = sort_overview_records(visible, sort_field, descending)
+    page_size = st.session_state.get("overview_page_size", 10)
     pages = max(1, (len(visible) + page_size - 1) // page_size)
     if st.session_state.get("overview_page", 1) > pages:
         st.session_state.overview_page = pages
-    page = st.number_input("Page", min_value=1, max_value=pages, value=1, step=1, key="overview_page")
+    page = st.session_state.get("overview_page", 1)
     start = (page - 1) * page_size
     displayed = visible[start:start + page_size]
-    headers = "".join(
-        f'<th{" class=linked" if field in linked_fields else ""}>{escape(field)}</th>'
-        for field in columns_to_show
+    sort_event = overview_grid(
+        columns=[{"name": field, "linked": field in linked_fields} for field in columns_to_show],
+        rows=[[clean_value(row.get(field, "")) for field in columns_to_show] for row in displayed],
+        sortField=sort_field,
+        descending=descending,
+        key="overview_grid",
     )
-    rows = "".join(
-        "<tr>" + "".join(f"<td>{escape(str(row.get(field, '') or '–'))}</td>" for field in columns_to_show) + "</tr>"
-        for row in displayed
-    )
-    st.markdown(
-        f'<div class="overview-grid"><table><thead><tr>{headers}</tr></thead><tbody>{rows}</tbody></table></div>',
-        unsafe_allow_html=True,
-    )
+    if isinstance(sort_event, dict) and sort_event.get("eventId") != st.session_state.get("overview_sort_event"):
+        event_id = sort_event.get("eventId")
+        requested_field = sort_event.get("field")
+        if not isinstance(event_id, str) or requested_field not in columns_to_show:
+            st.error("Unable to sort: the grid returned an invalid sort request.")
+        else:
+            st.session_state.overview_sort_event = event_id
+            (
+                st.session_state.overview_sort_field,
+                st.session_state.overview_sort_descending,
+            ) = next_overview_sort(requested_field, sort_field, descending)
+            st.rerun()
     if visible:
         st.caption(f"Showing {start + 1}–{start + len(displayed)} of {len(visible)} records")
     else:
         st.info("No share classes match these filters. Clear the filters or try a different search term.")
-    previous_column, next_column, _ = st.columns([1, 1, 4])
+    size_column, page_column, previous_column, next_column = st.columns([2, 1, 1, 1])
+    size_column.selectbox("Rows per page", [10, 25, 50], key="overview_page_size", on_change=reset_overview_page)
+    page_column.number_input("Page", min_value=1, max_value=pages, value=1, step=1, key="overview_page")
     previous_column.button(
         "Previous", disabled=page == 1, on_click=change_overview_page, args=(-1,)
     )
