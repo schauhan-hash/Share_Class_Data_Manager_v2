@@ -80,7 +80,7 @@ def inject_style():
         .st-key-workspace_navigation {
             position: relative; left: 50%; transform: translateX(-50%);
             width: 100vw; max-width: 100vw; box-sizing: border-box;
-            margin: 0 0 1.1rem; padding: 0 max(2rem, calc((100vw - 1680px) / 2 + 2rem));
+            margin: 0; padding: 0 max(2rem, calc((100vw - 1680px) / 2 + 2rem));
             background: var(--navy); border-bottom: 4px solid var(--maroon);
         }
         .st-key-workspace_navigation [data-testid="stHorizontalBlock"] {
