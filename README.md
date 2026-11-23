@@ -5,9 +5,10 @@ in `data/Genericized_Sample_Data.xlsx`.
 
 ## Demo features
 
-- Dashboard with record and data-quality metrics
+- Overview with active-record count and data-quality exceptions
 - HTML-prototype-inspired navy and maroon theme with top-level horizontal navigation
-- Overview table with operational filters, field-group selection, and coverage drilldowns
+- Overview grid with operational filters, field-group selection, sorting, paging,
+  filtered workbook export, and coverage drilldowns
 - Search and filters by lifecycle, currency, and share-class type
 - Grouped add/edit form covering all 37 taxonomy fields
 - Form entries remain available after submission, including when validation fails
