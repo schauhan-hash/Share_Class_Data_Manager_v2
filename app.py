@@ -179,14 +179,17 @@ def inject_style():
             background: var(--maroon); color: #fff; font-size: 24px;
         }
         .st-key-overview_exception_banner [data-testid="stVerticalBlock"] { gap: 2px !important; }
-        .st-key-overview_exception_banner [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap; gap: 4px !important; align-items: center;
-        }
-        .st-key-overview_exception_banner [data-testid="column"] {
-            flex: 0 0 auto !important; width: auto !important; min-width: 0 !important;
-        }
         .overview-exception-title { font-size: 17px; font-weight: 700; color: var(--ink); }
         .st-key-overview_exception_banner p { margin: 0; }
+        .st-key-overview_toolbar [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap; gap: 4px !important; align-items: center;
+        }
+        .st-key-overview_toolbar [data-testid="stHorizontalBlock"] > :is([data-testid="stColumn"], [data-testid="column"]) {
+            flex: 0 0 auto !important; width: auto !important; min-width: 0 !important;
+        }
+        .st-key-overview_toolbar [data-testid="stHorizontalBlock"] > :is([data-testid="stColumn"], [data-testid="column"]):first-child {
+            flex: 1 1 auto !important;
+        }
         .st-key-overview_quality_link button,
         .st-key-overview_clear_filters button,
         .st-key-overview_export button,
@@ -197,7 +200,19 @@ def inject_style():
             box-shadow: none !important; font-weight: 600;
         }
         .st-key-overview_quality_link button {
-            min-height: 24px; padding: 0; text-decoration: underline; text-underline-offset: 3px;
+            min-height: 24px; padding: 0; justify-content: flex-start; text-align: left;
+        }
+        .st-key-overview_quality_link button p {
+            color: var(--ink) !important; font-weight: 400 !important;
+        }
+        .st-key-overview_quality_link button strong {
+            color: var(--navy-2) !important; font-weight: 600;
+            text-decoration: underline; text-underline-offset: 3px;
+        }
+        .st-key-overview_clear_filters button p,
+        .st-key-overview_export button p,
+        .st-key-overview_columns_control [data-testid="stPopoverButton"] p {
+            color: var(--navy-2) !important; font-weight: 600 !important;
         }
         .st-key-overview_clear_filters button { text-decoration: underline; text-underline-offset: 3px; }
         .st-key-overview_quality_link button:hover,
@@ -350,14 +365,12 @@ def dashboard_page():
                 f'exception{"s" if len(issues) != 1 else ""}</div>',
                 unsafe_allow_html=True,
             )
-            link_column, text_column = st.columns(2, gap=None)
-            link_column.button(
-                "Click here",
+            st.button(
+                "**Click here** to triage these exceptions.",
                 key="overview_quality_link",
                 on_click=set_workspace_page,
                 args=("Data Quality",),
             )
-            text_column.markdown("to triage these exceptions.")
     active_count = sum(row.get("Share Class Lifecycle") == "Active" for row in records)
     st.markdown(
         '<section class="overview-heading"><h2>Share Class Records</h2>'
@@ -384,25 +397,26 @@ def dashboard_page():
         control.selectbox(label, values, key=key, on_change=reset_overview_page)
 
     visible = filtered_records()
-    clear_column, export_column, groups_column = st.columns([4, 1, 1])
-    clear_column.button("Clear Filters", key="overview_clear_filters", on_click=clear_overview_filters)
-    export_column.download_button(
-        "Export",
-        key="overview_export",
-        icon=":material/download:",
-        data=write_workbook(visible),
-        file_name="Share_Class_Records.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        help="Download all fields for the filtered records.",
-    )
-    with groups_column:
-        with st.container(key="overview_columns_control"):
-            with st.popover("Columns", icon=":material/view_column:"):
-                column_groups = st.multiselect(
-                    "Field groups",
-                    list(FIELD_GROUPS),
-                    default=list(FIELD_GROUPS),
-                )
+    with st.container(key="overview_toolbar"):
+        clear_column, export_column, groups_column = st.columns([4, 1, 1])
+        clear_column.button("Clear Filters", key="overview_clear_filters", on_click=clear_overview_filters)
+        export_column.download_button(
+            "Export",
+            key="overview_export",
+            icon=":material/download:",
+            data=write_workbook(visible),
+            file_name="Share_Class_Records.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="Download all fields for the filtered records.",
+        )
+        with groups_column:
+            with st.container(key="overview_columns_control"):
+                with st.popover("Columns", icon=":material/view_column:"):
+                    column_groups = st.multiselect(
+                        "Field groups",
+                        list(FIELD_GROUPS),
+                        default=list(FIELD_GROUPS),
+                    )
     columns_to_show = ["Share Class Reporting Name"]
     for group in column_groups:
         columns_to_show.extend(field for field in FIELD_GROUPS[group] if field not in columns_to_show)
