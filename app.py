@@ -137,6 +137,11 @@ def inject_style():
         }
         .section-heading h1 { margin: .15rem 0 .25rem; font-size: 1.55rem; color: var(--navy); }
         .section-description { color: var(--muted); max-width: 1000px; }
+        .overview-heading { margin: 0 0 14px; }
+        .overview-heading h2 {
+            margin: 0; padding: 0; color: var(--ink); font-size: 21px; font-weight: 700;
+        }
+        .overview-count { color: var(--muted); font-size: 14px; margin-top: 2px; }
         .eyebrow {
             color: var(--maroon); font-weight: 700; text-transform: uppercase;
             letter-spacing: .1em; font-size: .76rem;
@@ -257,11 +262,6 @@ def compact_table(records, columns=DEFAULT_COLUMNS):
 
 
 def dashboard_page():
-    page_title(
-        "Control centre",
-        "Share Class Records",
-        "Browse the complete working dataset, apply operational filters, and open record changes from the Create & Edit workspace.",
-    )
     records = st.session_state.records
     issues = validate_dataset(records)
     errors = [issue for issue in issues if issue["severity"] == "Error"]
@@ -272,6 +272,13 @@ def dashboard_page():
             f'{len(errors)} blocking issue{"s" if len(errors) != 1 else ""} require attention in Data Quality.</div>',
             unsafe_allow_html=True,
         )
+    active_count = sum(row.get("Share Class Lifecycle") == "Active" for row in records)
+    st.markdown(
+        '<section class="overview-heading"><h2>Share Class Records</h2>'
+        f'<div class="overview-count">{active_count} active '
+        f'record{"s" if active_count != 1 else ""}</div></section>',
+        unsafe_allow_html=True,
+    )
     controls = st.columns([2, 1, 1, 1, 1, 1])
     controls[0].text_input(
         "Search",
