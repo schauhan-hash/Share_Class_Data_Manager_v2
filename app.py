@@ -51,9 +51,15 @@ def inject_style():
         header[data-testid="stHeader"] { background: transparent; }
         [data-testid="stSidebar"] { display: none; }
         h1, h2, h3 { color: var(--navy); font-weight: 700; }
-        .app-hero {
-            margin: 0 -3rem; padding: 1.55rem 3rem 1.15rem;
+        .st-key-app_header {
+            position: relative; left: 50%; transform: translateX(-50%);
+            width: 100vw; max-width: 100vw; box-sizing: border-box;
+            margin: 0; padding: 1.55rem max(2rem, calc((100vw - 1680px) / 2 + 2rem)) 1.15rem;
             background: var(--navy); color: #fff;
+        }
+        .st-key-app_header [data-testid="stHorizontalBlock"] { align-items: center; }
+        .app-hero {
+            margin: 0; padding: 0; background: transparent; color: #fff;
             display: flex; align-items: center; gap: 18px;
         }
         .brand-mark {
@@ -65,30 +71,15 @@ def inject_style():
         .app-hero h1 { color: #fff; margin: 0 0 .2rem; font-size: 1.75rem; }
         .app-hero p { color: #d3dcee; margin: 0; font-size: 1.02rem; }
         .hero-copy { flex: 1 1 620px; min-width: 0; }
-        .browsing-role {
-            display: inline-flex; align-items: center; gap: 12px;
-            min-width: 260px; padding: 10px 18px 10px 12px;
-            border: 1px solid rgba(255,255,255,.32); border-radius: 999px;
-            background: rgba(255,255,255,.08); color: #fff;
-        }
-        .browsing-role-icon {
-            width: 36px; height: 36px; border-radius: 50%;
-            background: #fff; color: var(--maroon); flex: none;
-            display: grid; place-items: center; font-size: 1.1rem;
-        }
-        .browsing-role small {
-            display: block; color: #d3dcee; font-size: .8rem; line-height: 1.15;
-        }
-        .browsing-role strong {
-            display: block; color: #fff; font-size: 1.02rem; line-height: 1.25;
-        }
         [data-testid="stPopover"] > button {
             color: var(--navy-2); border: 1px solid var(--line);
             background: var(--surface); border-radius: 6px;
             font-weight: 600; min-height: 38px;
         }
         .st-key-workspace_navigation {
-            margin: 0 -3rem 1.1rem; padding: 0 2.6rem;
+            position: relative; left: 50%; transform: translateX(-50%);
+            width: 100vw; max-width: 100vw; box-sizing: border-box;
+            margin: 0 0 1.1rem; padding: 0 max(2rem, calc((100vw - 1680px) / 2 + 2rem));
             background: var(--navy); border-bottom: 4px solid var(--maroon);
         }
         .st-key-workspace_navigation [data-testid="stHorizontalBlock"] {
@@ -114,12 +105,18 @@ def inject_style():
         .st-key-workspace_navigation div.stButton > button:focus-visible {
             outline: 3px solid #9bbcff; outline-offset: -3px;
         }
-        [data-testid="stMetric"] {
-            background: var(--surface); border: 1px solid var(--line);
-            border-top: 4px solid var(--navy-2); border-radius: 8px;
-            padding: 14px 18px; box-shadow: 0 3px 12px rgba(20,40,75,.06);
+        .st-key-app_header [data-testid="stPopover"] > button {
+            width: 100%; min-width: 260px; min-height: 68px; padding: 10px 18px 10px 12px;
+            justify-content: flex-start; text-align: left;
+            border: 1px solid rgba(255,255,255,.32); border-radius: 999px;
+            background: rgba(255,255,255,.08); color: #fff;
         }
-        [data-testid="stMetricValue"] { color: var(--navy-2); }
+        .st-key-app_header [data-testid="stPopover"] > button p {
+            margin: 0; color: #d3dcee; font-size: .8rem; line-height: 1.15;
+        }
+        .st-key-app_header [data-testid="stPopover"] > button strong {
+            color: #fff; font-size: 1.02rem; line-height: 1.25;
+        }
         .section-heading {
             background: var(--surface); border: 1px solid var(--line);
             border-left: 5px solid var(--navy-2); border-radius: 8px;
@@ -158,11 +155,12 @@ def inject_style():
         }
         @media (max-width: 640px) {
             .block-container { padding-left: 1rem; padding-right: 1rem; }
-            .app-hero { margin-left: -1rem; margin-right: -1rem; padding: 1.2rem 1rem; }
-            .st-key-workspace_navigation { margin-left: -1rem; margin-right: -1rem; padding: 0 1rem; }
+            .st-key-app_header, .st-key-workspace_navigation {
+                padding-left: 1rem; padding-right: 1rem;
+            }
             .brand-mark { width: 46px; height: 46px; }
             .app-hero h1 { font-size: 1.35rem; }
-            .browsing-role { min-width: 0; width: 100%; }
+            .st-key-app_header [data-testid="stPopover"] > button { min-width: 0; }
         }
         </style>
         """,
@@ -252,8 +250,6 @@ def dashboard_page():
     records = st.session_state.records
     issues = validate_dataset(records)
     errors = [issue for issue in issues if issue["severity"] == "Error"]
-    unique_isins = len({row["ISIN"] for row in records if row["ISIN"]})
-    active = sum(row.get("Share Class Lifecycle") == "Active" for row in records)
     if issues:
         st.markdown(
             f'<div class="exception-banner"><strong>{len(issues)} data-quality '
@@ -261,12 +257,6 @@ def dashboard_page():
             f'{len(errors)} blocking issue{"s" if len(errors) != 1 else ""} require attention in Data Quality.</div>',
             unsafe_allow_html=True,
         )
-    columns = st.columns(4)
-    columns[0].metric("Share classes", len(records), "working dataset")
-    columns[1].metric("Active", active)
-    columns[2].metric("Unique ISINs", unique_isins, f"{len(records) - unique_isins} missing/duplicate")
-    columns[3].metric("Data issues", len(issues), f"{len(errors)} blocking")
-
     controls = st.columns([2, 1, 1, 1, 1, 1])
     controls[0].text_input(
         "Search",
@@ -752,22 +742,34 @@ if st.session_state.get("workspace_nav") not in workspace_pages:
 
 inject_style()
 
-st.markdown(
-    f"""
-    <div class="app-hero">
-      <div class="brand-mark" aria-hidden="true">◆</div>
-      <div class="hero-copy">
-        <h1>Product Ops – Share Class Data Management Tool</h1>
-        <p>Create, review and manage master share class records using a controlled approval workflow.</p>
-      </div>
-      <div class="browsing-role" role="status">
-        <span class="browsing-role-icon" aria-hidden="true">✎</span>
-        <span><small>Browsing as</small><strong>Product Ops – {st.session_state.role}</strong></span>
-      </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+with st.container(key="app_header"):
+    hero_column, role_column = st.columns([4, 1.35])
+    with hero_column:
+        st.markdown(
+            """
+            <div class="app-hero">
+              <div class="brand-mark" aria-hidden="true">◆</div>
+              <div class="hero-copy">
+                <h1>Product Ops – Share Class Data Management Tool</h1>
+                <p>Create, review and manage master share class records using a controlled approval workflow.</p>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with role_column:
+        with st.popover(
+            f"Browsing as  \n**Product Ops – {st.session_state.role}**",
+            icon=":material/edit:",
+            use_container_width=True,
+        ):
+            st.session_state.role = st.selectbox(
+                "Browsing as",
+                list(ROLE_PERMISSIONS),
+                index=list(ROLE_PERMISSIONS).index(st.session_state.role),
+                key="browsing_role",
+            )
+            st.caption(actor())
 
 with st.container(key="workspace_navigation"):
     nav_columns = st.columns([len(label) + 2 for label in workspace_options], gap="small")
@@ -782,21 +784,10 @@ with st.container(key="workspace_navigation"):
                 args=(label,),
             )
 
-controls_column, summary_column = st.columns([1, 3])
-with controls_column:
-    with st.popover("Change browsing role"):
-        st.session_state.role = st.selectbox(
-            "Browsing as",
-            list(ROLE_PERMISSIONS),
-            index=list(ROLE_PERMISSIONS).index(st.session_state.role),
-            key="browsing_role",
-        )
-        st.caption(actor())
-with summary_column:
-    st.caption(
-        f"{len(st.session_state.records)} working records · "
-        f"{len(st.session_state.pending)} pending proposals"
-    )
+st.caption(
+    f"{len(st.session_state.records)} working records · "
+    f"{len(st.session_state.pending)} pending proposals"
+)
 
 workspace_pages[st.session_state.workspace_nav]()
 
