@@ -54,9 +54,10 @@ def inject_style():
         .st-key-app_header {
             position: relative; left: 50%; transform: translateX(-50%);
             width: 100vw; max-width: 100vw; box-sizing: border-box;
-            margin: 0; padding: 1.55rem max(2rem, calc((100vw - 1680px) / 2 + 2rem)) 1.15rem;
+            margin: 0; padding: 1.55rem max(2rem, calc((100vw - 1680px) / 2 + 2rem)) 0;
             background: var(--navy); color: #fff;
         }
+        .st-key-app_header [data-testid="stVerticalBlock"] { gap: 0 !important; }
         .st-key-app_header [data-testid="stHorizontalBlock"] { align-items: center; }
         .app-hero {
             margin: 0; padding: 0; background: transparent; color: #fff;
@@ -105,7 +106,7 @@ def inject_style():
         .st-key-workspace_navigation div.stButton > button:focus-visible {
             outline: 3px solid #9bbcff; outline-offset: -3px;
         }
-        .st-key-app_header [data-testid="stPopover"] > button {
+        .st-key-app_header [data-testid="stPopoverButton"] {
             display: flex !important; flex-direction: row !important;
             align-items: center !important; justify-content: flex-start !important;
             gap: 12px !important; width: 300px !important; min-width: 260px;
@@ -114,17 +115,19 @@ def inject_style():
             background: rgba(255,255,255,.08) !important; color: #fff !important;
             text-align: left !important; box-shadow: none !important;
         }
-        .st-key-app_header [data-testid="stPopover"] > button svg {
+        .st-key-app_header [data-testid="stPopoverButton"] svg:first-of-type {
             box-sizing: content-box; width: 18px; height: 18px; padding: 9px;
-            flex: none; border-radius: 50%; background: #fff; color: var(--maroon);
+            flex: none; border-radius: 50%; background: #fff !important; color: var(--maroon) !important;
         }
-        .st-key-app_header [data-testid="stPopover"] > button [data-testid="stMarkdownContainer"] {
+        .st-key-app_header [data-testid="stPopoverButton"] * { color: #fff !important; }
+        .st-key-app_header [data-testid="stPopoverButton"] > div:first-child,
+        .st-key-app_header [data-testid="stPopoverButton"] [data-testid="stMarkdownContainer"] {
             flex: 1; text-align: left !important;
         }
-        .st-key-app_header [data-testid="stPopover"] > button p {
+        .st-key-app_header [data-testid="stPopoverButton"] p {
             margin: 0; color: #d3dcee !important; font-size: .8rem; line-height: 1.15;
         }
-        .st-key-app_header [data-testid="stPopover"] > button strong {
+        .st-key-app_header [data-testid="stPopoverButton"] strong {
             color: #fff !important; font-size: 1.02rem; line-height: 1.25;
         }
         .section-heading {
@@ -170,7 +173,7 @@ def inject_style():
             }
             .brand-mark { width: 46px; height: 46px; }
             .app-hero h1 { font-size: 1.35rem; }
-            .st-key-app_header [data-testid="stPopover"] > button {
+            .st-key-app_header [data-testid="stPopoverButton"] {
                 width: 100% !important; min-width: 0;
             }
         }
@@ -755,46 +758,48 @@ if st.session_state.get("workspace_nav") not in workspace_pages:
 inject_style()
 
 with st.container(key="app_header"):
-    hero_column, role_column = st.columns([4, 1.35])
-    with hero_column:
-        st.markdown(
-            """
-            <div class="app-hero">
-              <div class="brand-mark" aria-hidden="true">◆</div>
-              <div class="hero-copy">
-                <h1>Product Ops – Share Class Data Management Tool</h1>
-                <p>Create, review and manage master share class records using a controlled approval workflow.</p>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with role_column:
-        with st.popover(
-            f"Browsing as  \n**Product Ops – {st.session_state.role}**",
-            icon=":material/edit:",
-            use_container_width=True,
-        ):
-            st.session_state.role = st.selectbox(
-                "Browsing as",
-                list(ROLE_PERMISSIONS),
-                index=list(ROLE_PERMISSIONS).index(st.session_state.role),
-                key="browsing_role",
+    header_content = st.container()
+    with header_content:
+        hero_column, role_column = st.columns([4, 1.35])
+        with hero_column:
+            st.markdown(
+                """
+                <div class="app-hero">
+                  <div class="brand-mark" aria-hidden="true">◆</div>
+                  <div class="hero-copy">
+                    <h1>Product Ops – Share Class Data Management Tool</h1>
+                    <p>Create, review and manage master share class records using a controlled approval workflow.</p>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            st.caption(actor())
-
-with st.container(key="workspace_navigation"):
-    nav_columns = st.columns([len(label) + 2 for label in workspace_options], gap="small")
-    for index, (column, label) in enumerate(zip(nav_columns, workspace_options)):
-        with column:
-            st.button(
-                label,
-                key=f"workspace_tab_{index}",
-                type="primary" if st.session_state.workspace_nav == label else "secondary",
+        with role_column:
+            with st.popover(
+                f"Browsing as  \n**Product Ops – {st.session_state.role}**",
+                icon=":material/edit:",
                 use_container_width=True,
-                on_click=set_workspace_page,
-                args=(label,),
-            )
+            ):
+                st.session_state.role = st.selectbox(
+                    "Browsing as",
+                    list(ROLE_PERMISSIONS),
+                    index=list(ROLE_PERMISSIONS).index(st.session_state.role),
+                    key="browsing_role",
+                )
+                st.caption(actor())
+
+    with st.container(key="workspace_navigation"):
+        nav_columns = st.columns([len(label) + 2 for label in workspace_options], gap="small")
+        for index, (column, label) in enumerate(zip(nav_columns, workspace_options)):
+            with column:
+                st.button(
+                    label,
+                    key=f"workspace_tab_{index}",
+                    type="primary" if st.session_state.workspace_nav == label else "secondary",
+                    use_container_width=True,
+                    on_click=set_workspace_page,
+                    args=(label,),
+                )
 
 st.caption(
     f"{len(st.session_state.records)} working records · "
