@@ -64,10 +64,28 @@ def inject_style():
         }
         .app-hero h1 { color: #fff; margin: 0 0 .2rem; font-size: 1.75rem; }
         .app-hero p { color: #d3dcee; margin: 0; font-size: 1.02rem; }
-        .role-strip {
-            padding: .65rem .9rem; background: var(--surface);
-            border: 1px solid var(--line); border-radius: 8px;
-            box-shadow: 0 3px 12px rgba(20,40,75,.06);
+        .hero-copy { flex: 1 1 620px; min-width: 0; }
+        .browsing-role {
+            display: inline-flex; align-items: center; gap: 12px;
+            min-width: 260px; padding: 10px 18px 10px 12px;
+            border: 1px solid rgba(255,255,255,.32); border-radius: 999px;
+            background: rgba(255,255,255,.08); color: #fff;
+        }
+        .browsing-role-icon {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: #fff; color: var(--maroon); flex: none;
+            display: grid; place-items: center; font-size: 1.1rem;
+        }
+        .browsing-role small {
+            display: block; color: #d3dcee; font-size: .8rem; line-height: 1.15;
+        }
+        .browsing-role strong {
+            display: block; color: #fff; font-size: 1.02rem; line-height: 1.25;
+        }
+        [data-testid="stPopover"] > button {
+            color: var(--navy-2); border: 1px solid var(--line);
+            background: var(--surface); border-radius: 6px;
+            font-weight: 600; min-height: 38px;
         }
         [data-testid="stRadio"] [role="radiogroup"] {
             gap: 0; border-bottom: 1px solid var(--line);
@@ -128,6 +146,7 @@ def inject_style():
             .app-hero { margin-left: -1rem; margin-right: -1rem; padding: 1.2rem 1rem; }
             .brand-mark { width: 46px; height: 46px; }
             .app-hero h1 { font-size: 1.35rem; }
+            .browsing-role { min-width: 0; width: 100%; }
         }
         </style>
         """,
@@ -696,37 +715,40 @@ def admin_page():
 inject_style()
 initialize_state()
 
+if "browsing_role" in st.session_state:
+    st.session_state.role = st.session_state.browsing_role
+
 st.markdown(
-    """
+    f"""
     <div class="app-hero">
       <div class="brand-mark" aria-hidden="true">◆</div>
-      <div>
+      <div class="hero-copy">
         <h1>Product Ops – Share Class Data Management Tool</h1>
         <p>Create, review and manage master share class records using a controlled approval workflow.</p>
+      </div>
+      <div class="browsing-role" role="status">
+        <span class="browsing-role-icon" aria-hidden="true">✎</span>
+        <span><small>Browsing as</small><strong>Product Ops – {st.session_state.role}</strong></span>
       </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-role_column, identity_column, count_column = st.columns([1.1, 2.2, 1.2])
-with role_column:
-    st.session_state.role = st.selectbox(
-        "Demo role",
-        list(ROLE_PERMISSIONS),
-        index=list(ROLE_PERMISSIONS).index(st.session_state.role),
-    )
-with identity_column:
-    st.markdown(
-        f'<div class="role-strip"><strong>{actor()}</strong><br>'
-        '<span style="color:#55607a">Demo role switching is not production authentication.</span></div>',
-        unsafe_allow_html=True,
-    )
-with count_column:
-    st.markdown(
-        f'<div class="role-strip"><strong>{len(st.session_state.records)} working records</strong><br>'
-        f'<span style="color:#55607a">{len(st.session_state.pending)} pending proposals</span></div>',
-        unsafe_allow_html=True,
+controls_column, summary_column = st.columns([1, 3])
+with controls_column:
+    with st.popover("Change browsing role"):
+        st.session_state.role = st.selectbox(
+            "Browsing as",
+            list(ROLE_PERMISSIONS),
+            index=list(ROLE_PERMISSIONS).index(st.session_state.role),
+            key="browsing_role",
+        )
+        st.caption(actor())
+with summary_column:
+    st.caption(
+        f"{len(st.session_state.records)} working records · "
+        f"{len(st.session_state.pending)} pending proposals"
     )
 
 page = st.radio(
