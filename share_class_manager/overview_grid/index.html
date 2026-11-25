@@ -27,13 +27,43 @@
     th[aria-sort="ascending"] .arrows::after, th[aria-sort="descending"] .arrows::before { opacity: .25; }
     td { padding: 9px 14px; }
     tbody tr:nth-child(even) td { background: #f7f9fc; }
-    th:first-child, td:first-child {
-      position: sticky; left: 0; z-index: 1; min-width: 260px;
+    th.action-header, td.action-cell {
+      position: sticky; left: 0; z-index: 2; width: 108px; min-width: 108px; max-width: 108px;
+      padding: 7px 10px; text-align: center;
       box-shadow: 3px 0 0 rgba(20,40,75,.14);
     }
-    th:first-child { z-index: 2; }
-    td:first-child { background: #fff; font-weight: 600; }
-    tbody tr:nth-child(even) td:first-child { background: #f7f9fc; }
+    th.action-header { z-index: 3; background: #fff; }
+    th.name-header, td.name-cell {
+      position: sticky; left: 108px; z-index: 1; min-width: 260px;
+      box-shadow: 3px 0 0 rgba(20,40,75,.14);
+    }
+    th.name-header { z-index: 2; }
+    td.name-cell { background: #fff; font-weight: 600; }
+    tbody tr:nth-child(even) td.name-cell { background: #f7f9fc; }
+    tr.add-row td { height: 52px; background: #eef3fb; border-bottom: 2px solid #b5c9ee; }
+    tr.add-row td.action-cell { background: #fff; }
+    .row-action {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      min-width: 76px; min-height: 36px; padding: 5px 10px; border: 1px solid #6e88b4;
+      border-radius: 7px; background: #fff; color: #244577;
+      font: 600 14px "Source Sans 3", "Segoe UI", sans-serif;
+      cursor: pointer;
+    }
+    .row-action:hover { background: #e8eef8; }
+    .row-action:focus-visible { outline: 3px solid #5b8def; outline-offset: 2px; }
+    .row-action svg { width: 14px; height: 14px; flex: none; }
+    .row-action.add { border-color: #7a1f2b; background: #7a1f2b; color: #fff; }
+    .row-action.add:hover { border-color: #651823; background: #651823; }
+    .add-input, .add-select {
+      display: block; width: 100%; min-height: 38px; padding: 6px 12px;
+      border: 1px solid #d5dbe7; border-radius: 6px; background: #fff;
+      color: #1a2233; font: 14px "Source Sans 3", "Segoe UI", sans-serif;
+    }
+    .add-input { min-width: 220px; }
+    .add-select { min-width: 180px; }
+    .add-input:focus, .add-select:focus {
+      outline: 3px solid #9bbcff; outline-offset: 1px;
+    }
   </style>
 </head>
 <body>
@@ -58,6 +88,36 @@
       }
     }
 
+    function makeActionButton(action, rowIndex, label) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `row-action ${action}`;
+      button.setAttribute("aria-label", label);
+      const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("viewBox", "0 0 24 24");
+      icon.setAttribute("fill", "none");
+      icon.setAttribute("stroke", "currentColor");
+      icon.setAttribute("stroke-width", "2");
+      icon.setAttribute("stroke-linecap", "round");
+      icon.setAttribute("stroke-linejoin", "round");
+      icon.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", action === "add" ? "M12 5v14M5 12h14" : "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z");
+      icon.appendChild(path);
+      button.append(icon, document.createTextNode(action === "add" ? "Add" : "Edit"));
+      button.addEventListener("click", () => {
+        const nameInput = body.querySelector(".add-input");
+        const securitySelect = body.querySelector(".add-select");
+        const reportingName = action === "add" ? (nameInput ? nameInput.value : "") : undefined;
+        const isin = action === "add" ? (securitySelect ? securitySelect.value : "") : undefined;
+        send("streamlit:setComponentValue", {
+          dataType: "json",
+          value: {action, rowIndex, reportingName, isin, eventId: `${Date.now()}-${Math.random()}`}
+        });
+      });
+      return button;
+    }
+
     function render(args) {
       const scrollLeft = grid.scrollLeft;
       const focusedField = head.contains(document.activeElement) ? document.activeElement.dataset.field : null;
@@ -65,10 +125,16 @@
       head.replaceChildren();
       body.replaceChildren();
       const headerRow = document.createElement("tr");
+      const actionHeader = document.createElement("th");
+      actionHeader.className = "action-header";
+      actionHeader.scope = "col";
+      actionHeader.setAttribute("aria-label", "Actions");
+      headerRow.appendChild(actionHeader);
       args.columns.forEach(column => {
         const th = document.createElement("th");
         th.scope = "col";
         if (column.linked) th.className = "linked";
+        if (column.name === "Share Class Reporting Name") th.classList.add("name-header");
         const active = args.sortField === column.name;
         th.setAttribute("aria-sort", active ? (args.descending ? "descending" : "ascending") : "none");
         const button = document.createElement("button");
@@ -104,10 +170,70 @@
         headerRow.appendChild(th);
       });
       head.appendChild(headerRow);
-      args.rows.forEach(row => {
+      const addRow = document.createElement("tr");
+      addRow.className = "add-row";
+      const addCell = document.createElement("td");
+      addCell.className = "action-cell";
+      addCell.appendChild(makeActionButton("add", null, "Add share class"));
+      addRow.appendChild(addCell);
+      const addFields = {};
+      args.columns.forEach((column, index) => {
+        const cell = document.createElement("td");
+        if (index === 0 && column.name === "Share Class Reporting Name") cell.classList.add("name-cell");
+        if (column.name === "Share Class Reporting Name") {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "add-input";
+          input.setAttribute("aria-label", "New Share Class Reporting Name");
+          input.value = args.addDraft && args.addDraft.reportingName || "";
+          addFields.reportingName = input;
+          cell.appendChild(input);
+        } else if (column.name === "ISIN") {
+          const select = document.createElement("select");
+          select.className = "add-select";
+          select.setAttribute("aria-label", "Select security");
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = "Select security";
+          select.appendChild(placeholder);
+          (args.securityOptions || []).forEach(security => {
+            const option = document.createElement("option");
+            option.value = security.isin;
+            option.textContent = security.isin;
+            select.appendChild(option);
+          });
+          select.value = args.addDraft && args.addDraft.isin || "";
+          addFields.isin = select;
+          cell.appendChild(select);
+        } else {
+          cell.textContent = "–";
+          if (column.linked) addFields[column.name] = cell;
+        }
+        addRow.appendChild(cell);
+      });
+      function updateLinkedFields() {
+        const selected = (args.securityOptions || []).find(security => security.isin === addFields.isin.value);
+        Object.keys(addFields).forEach(field => {
+          if (field !== "isin" && field !== "reportingName") {
+            addFields[field].textContent = selected && selected.fields[field] || "–";
+          }
+        });
+      }
+      if (addFields.isin) {
+        addFields.isin.addEventListener("change", updateLinkedFields);
+        updateLinkedFields();
+      }
+      body.appendChild(addRow);
+      args.rows.forEach((row, rowIndex) => {
         const tr = document.createElement("tr");
-        row.forEach(value => {
+        const actionCell = document.createElement("td");
+        actionCell.className = "action-cell";
+        const recordName = row[0] || "share class";
+        actionCell.appendChild(makeActionButton("edit", rowIndex, `Edit ${recordName}`));
+        tr.appendChild(actionCell);
+        row.forEach((value, columnIndex) => {
           const td = document.createElement("td");
+          if (columnIndex === 0) td.classList.add("name-cell");
           td.textContent = value || "–";
           tr.appendChild(td);
         });
