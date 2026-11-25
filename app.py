@@ -412,6 +412,21 @@ def dashboard_page():
         "ISIN", "CUSIP", "Legal Fund Name Including Umbrella", "Umbrella",
         "Legal Fund Name", "Legal Fund Name (Internal)", "Sub-Fund Name",
     }
+    security_options = []
+    seen_isins = set()
+    for row in records:
+        isin = clean_value(row.get("ISIN", ""))
+        if isin and isin not in seen_isins:
+            seen_isins.add(isin)
+            security_options.append(
+                {
+                    "isin": isin,
+                    "fields": {
+                        field: clean_value(row.get(field, ""))
+                        for field in linked_fields
+                    },
+                }
+            )
     st.markdown(
         '<div class="overview-legend"><span><i></i>Share class field</span>'
         '<span><i class="linked"></i>Fund or security field</span></div>',
@@ -435,11 +450,38 @@ def dashboard_page():
     sort_event = overview_grid(
         columns=[{"name": field, "linked": field in linked_fields} for field in columns_to_show],
         rows=[[clean_value(row.get(field, "")) for field in columns_to_show] for row in displayed],
+        securityOptions=security_options,
+        addDraft=st.session_state.get("overview_add_draft", {}),
         sortField=sort_field,
         descending=descending,
         key="overview_grid",
     )
-    if isinstance(sort_event, dict) and sort_event.get("eventId") != st.session_state.get("overview_sort_event"):
+    if isinstance(sort_event, dict) and sort_event.get("action") in {"add", "edit"}:
+        event_id = sort_event.get("eventId")
+        if isinstance(event_id, str) and event_id != st.session_state.get("overview_action_event"):
+            st.session_state.overview_action_event = event_id
+            action = sort_event["action"]
+            if action == "add":
+                reporting_name = sort_event.get("reportingName", "")
+                isin = sort_event.get("isin", "")
+                if not isinstance(reporting_name, str) or not isinstance(isin, str):
+                    st.error("Unable to add: the grid returned invalid form values.")
+                else:
+                    st.session_state.overview_add_draft = {
+                        "reportingName": reporting_name,
+                        "isin": isin,
+                    }
+                    st.toast("Add navigation will be available later.")
+            else:
+                row_index = sort_event.get("rowIndex")
+                if isinstance(row_index, int) and 0 <= row_index < len(displayed):
+                    name = clean_value(displayed[row_index].get("Share Class Reporting Name", ""))
+                    st.toast(f"Edit navigation for {name} will be available later.")
+                else:
+                    st.error("Unable to edit: the grid returned an invalid row.")
+        elif not isinstance(event_id, str):
+            st.error("Unable to process the action: the grid returned an invalid event.")
+    elif isinstance(sort_event, dict) and sort_event.get("eventId") != st.session_state.get("overview_sort_event"):
         event_id = sort_event.get("eventId")
         requested_field = sort_event.get("field")
         if not isinstance(event_id, str) or requested_field not in columns_to_show:
